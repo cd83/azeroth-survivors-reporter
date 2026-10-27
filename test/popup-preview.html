@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Popup preview</title>
+<!-- The real popup, with a stand-in `chrome` API and sample runs, to look at it without
+     installing the extension. Serve the repo root (python -m http.server) and open
+     /test/popup-preview.html. -->
+<base href="../extension/popup/">
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<script>
+  const store = {
+    settings: { webhookUrl: '', playerName: 'Chris', autoPost: 'off' },
+    addon: { state: 'current', at: Date.now() },
+    runs: [
+      { id: 'a1', result: 'left', hero: 'Zulira', raceName: 'Human', className: 'Warrior', zoneName: 'Elwynn Forest', level: 4, time: 29.1, kills: 22, bosses: 0, bossesTotal: 5, damage: 2249, posted: null },
+      { id: 'b2', result: 'defeat', hero: 'Thrall', raceName: 'Orc', className: 'Shaman', zoneName: 'Duskwood', level: 18, time: 412, kills: 1310, bosses: 2, bossesTotal: 5, damage: 401233, posted: { at: Date.now() } },
+      { id: 'c3', result: 'victory', hero: 'Ayla', raceName: 'Gnome', className: 'Mage', zoneName: 'Elwynn Forest', level: 31, time: 961, kills: 4210, bosses: 5, bossesTotal: 5, damage: 2481902, posted: null },
+    ],
+  };
+  window.chrome = {
+    storage: {
+      local: { get: async () => store, set: async (v) => Object.assign(store, v) },
+      onChanged: { addListener() {} },
+    },
+    runtime: {
+      sendMessage: async (msg) => (msg.type === 'post'
+        ? { ok: false, error: 'Set a Discord webhook URL first (Settings).' }
+        : { ok: true }),
+    },
+  };
+
+  (async () => {
+    const html = await (await fetch('popup.html')).text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const scripts = [...doc.querySelectorAll('script')].map((s) => s.getAttribute('src'));
+    doc.querySelectorAll('script').forEach((s) => s.remove());
+    document.body.append(...doc.body.childNodes);
+    for (const src of scripts) {
+      await new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        document.body.append(s);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

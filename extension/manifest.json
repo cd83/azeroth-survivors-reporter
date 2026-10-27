@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Azeroth Survivors Reporter",
+  "version": "0.1.0",
+  "description": "Captures your Azeroth Survivors runs and reports them to your Discord server.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "Azeroth Survivors Reporter",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://discord.com/api/webhooks/*",
+    "https://ptb.discord.com/api/webhooks/*",
+    "https://canary.discord.com/api/webhooks/*",
+    "https://discordapp.com/api/webhooks/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://wow.aethus.pl/*"],
+      "js": ["lib/luatable.js", "lib/runs.js", "content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["addon/RunReporter/*"],
+      "matches": ["https://wow.aethus.pl/*"]
+    }
+  ]
+}

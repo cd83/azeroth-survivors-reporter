@@ -1,0 +1,6 @@
+## Interface: 11200
+## Title: Run Reporter
+## Notes: Keeps each finished run's numbers for the Azeroth Survivors Reporter browser extension.
+## Version: 1
+## SavedVariables: RunReporterDB
+RunReporter.lua
