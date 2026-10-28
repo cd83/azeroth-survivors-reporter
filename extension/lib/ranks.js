@@ -31,12 +31,18 @@
 
   for (const stat of STATS) stat.format = stat.format || num;
 
-  // runs -> { [run id]: { [stat key]: { rank, of } } }. Ties share a rank (1, 1, 3).
+  // Endless mode goes on as long as you survive, so an endless run could top every stat just by
+  // waiting. Only runs that end count.
+  const countsOnLeaderboard = (run) => !run.endless;
+
+  // runs -> { [run id]: { [stat key]: { rank, of } } }. Ties share a rank (1, 1, 3). Runs that
+  // don't count get no ranks.
   function rankRuns(runs) {
     const out = {};
     for (const run of runs) out[run.id] = {};
     for (const stat of STATS) {
       const scored = runs
+        .filter(countsOnLeaderboard)
         .map((run) => ({ run, v: stat.value(run) }))
         .filter((s) => typeof s.v === 'number' && Number.isFinite(s.v))
         .sort((a, b) => (stat.lower ? a.v - b.v : b.v - a.v));
@@ -58,5 +64,5 @@
   }
 
   root.ASR = root.ASR || {};
-  Object.assign(root.ASR, { STATS, rankRuns, records });
+  Object.assign(root.ASR, { STATS, countsOnLeaderboard, rankRuns, records });
 })(globalThis);

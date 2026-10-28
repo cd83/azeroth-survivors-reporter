@@ -59,6 +59,12 @@ assert.deepStrictEqual(ranks[left.id].taken, undefined, 'only victories rank on 
 assert.strictEqual(ranks[win.id].taken.rank, 1);
 const tied = ASR.rankRuns([{ id: 'a', kills: 5, meter: [] }, { id: 'b', kills: 5, meter: [] }, { id: 'c', kills: 1, meter: [] }]);
 assert.deepStrictEqual([tied.a.kills.rank, tied.b.kills.rank, tied.c.kills.rank], [1, 1, 3]);
+// Endless runs never rank, so they can't take records by surviving forever.
+const endless = { ...win, id: 'endless1', endless: true, kills: 1e6, damage: 1e9 };
+const withEndless = ASR.rankRuns([...all, endless]);
+assert.deepStrictEqual(withEndless.endless1, {});
+assert.strictEqual(withEndless[win.id].kills.rank, 1);
+assert.strictEqual(ASR.records([...all, endless]).find((r) => r.stat.key === 'kills').run.id, win.id);
 const recs = ASR.records(all);
 assert.strictEqual(recs.find((r) => r.stat.key === 'damage').run.id, win.id);
 const spell = recs.find((r) => r.stat.key === 'spell');

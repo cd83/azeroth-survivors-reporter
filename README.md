@@ -29,6 +29,8 @@ Every stat is a competition: each stat on each run shows its rank (`#1` gold, `#
 bronze; hover for "of N"), and **Records** at the top holds the best run for each one: longest
 survival, highest level, most kills, elites, guardians, bosses, damage, DPS, damage with one spell,
 gold and caches, and least damage taken (victories only, since dying early keeps it low).
+Endless-mode runs don't count: they go on as long as you survive, so they could top every stat
+just by waiting. They're still listed and can still be reported.
 
 On its own the extension ranks the runs on your computer (it keeps the last 500). With the group's
 **leaderboard bot** set up ([bot/README.md](bot/README.md)), paste its URL into Settings → **Group

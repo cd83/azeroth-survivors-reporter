@@ -134,6 +134,7 @@ function renderRun(run, settings, runRanks) {
   head.append(el('span', 'bot-name', payload.username), el('span', 'bot-tag', 'APP'));
   if (run.posted) head.append(el('span', 'posted', `✓ Reported ${new Date(run.posted.at).toLocaleString()}`));
   else if (run.backfill) head.append(el('span', 'muted', 'From before the extension was installed'));
+  if (!ASR.countsOnLeaderboard(run)) head.append(el('span', 'muted', 'Endless: not on the leaderboard'));
   li.append(head, renderEmbed(payload.embeds[0], runRanks));
 
   const file = el('details', 'attachment');

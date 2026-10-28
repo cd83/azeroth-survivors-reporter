@@ -98,6 +98,10 @@ assert.strictEqual(r.announced, 1);
 assert.match(announcements.at(-1), /🥇 \*\*Most gold\*\*: 5,000 — overtaking \*\*Sam\*\* \(812\)/);
 assert.doesNotMatch(announcements.at(-1), /Most kills/, 'a tie overtakes no one');
 
+// An endless run counts for nothing, however big.
+post({ ...fixtures[1], id: 'endless1', endless: true, gold: 1e6 }, 'Lee');
+assert.strictEqual((await sync(env, fakeFetch)).announced, 0);
+
 // A tie on its own: nothing to announce.
 post({ ...fixtures[1], id: 'new3', gold: 5000 }, 'Lee');
 assert.strictEqual((await sync(env, fakeFetch)).announced, 0);
