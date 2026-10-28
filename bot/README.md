@@ -9,6 +9,15 @@ no computer to keep on.
 * `GET /runs` serves every run. Paste the bot's URL into the extension (Settings → **Group
   leaderboard URL**) and the run viewer ranks your runs against everyone's.
 * `/leaderboard` in Discord shows every record, and `/leaderboard stat:Most kills` the top 10.
+* When a new run overtakes someone on the leaderboard, it says so in the channel:
+
+  > ⚔️ **Lee** climbed the leaderboard with Mira · Priest · Elwynn Forest!<br>
+  > 🥇 **Most gold**: 5,000 — overtaking **Sam** (812)<br>
+  > **#4** **Most kills**: 3,120 — overtaking **Chris** (2,990)
+
+  One message per run, listing every stat where it pushed someone down within the top 10 (set
+  `ANNOUNCE_TOP` in `wrangler.toml` to change the depth, or `"0"` to turn it off). Tying a run
+  doesn't count; beating your own run says so.
 
 One person sets this up once. You need a free Cloudflare account, Node.js, and someone with
 **Manage Server** on the Discord server for step 2.
@@ -25,7 +34,8 @@ One person sets this up once. You need a free Cloudflare account, Node.js, and s
 ## 2. Add it to the server
 
 **OAuth2 → URL Generator**: tick the scopes `bot` and `applications.commands`, then the bot
-permissions **View Channels** and **Read Message History**. Open the generated URL (or send it to
+permissions **View Channels**, **Read Message History** and **Send Messages** (for the
+announcements). Open the generated URL (or send it to
 the server admin) and add the bot to the server. If `#scoreboard` is private, give the bot access
 to it in the channel's permissions.
 
@@ -78,6 +88,10 @@ minute after they're posted.
 * The bot reads the channel from where it left off. A big backlog (say, after adding the bot to a
   channel with hundreds of runs) catches up over a few minutes: Cloudflare limits how many requests
   one run may make.
+* Announcements start once the bot has read the whole channel, so adding it to a channel full of
+  old runs doesn't replay them. It posts at most 5 a minute; runs beyond that still count, just
+  without a message. If the bot was added before announcements existed, give it **Send Messages**
+  in `#scoreboard` and run `npm run deploy` again.
 * Only messages posted by a webhook with a `run.json` count. Deleting a post in Discord doesn't
   remove its run from the bot.
 * After changing the stats in `extension/lib/ranks.js`, run `npm run register` again (the

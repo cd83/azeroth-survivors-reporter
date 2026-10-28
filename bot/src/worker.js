@@ -2,7 +2,8 @@
 // every post in the runs channel, keeps them in KV, and serves them two ways:
 //   GET  /runs          every reported run, for the extension's rankings
 //   POST /interactions  Discord's /leaderboard slash command
-// A cron trigger (wrangler.toml) syncs the channel every minute, so neither has to wait on Discord.
+// A cron trigger (wrangler.toml) syncs the channel every minute, so neither has to wait on Discord,
+// and announces in the channel when a new run overtakes someone on the leaderboard.
 import '../../extension/lib/runs.js';
 import '../../extension/lib/ranks.js';
 
@@ -14,6 +15,7 @@ const STATE_KEY = 'state';
 const MAX_DOWNLOADS = 40;
 const MAX_REQUESTS = 48;
 const MAX_JSON_BYTES = 256 * 1024;
+const MAX_ANNOUNCEMENTS = 5; // per sync (a minute); more waiting runs are ranked but not announced
 
 const cmpId = (a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0);
 
@@ -23,16 +25,23 @@ function emptyState() {
 
 // Reads the channel from where the last sync stopped, oldest first, and adds each run.json a
 // webhook posted. Stops early (and picks up there next time) at the request budget or a rate
-// limit. A run reported twice keeps its latest post.
+// limit. A run reported twice keeps its latest post. New runs that push someone down the
+// leaderboard get announced in the channel, once the bot has caught up with the channel's history
+// (so deploying it on a busy channel doesn't replay every old run).
 export async function sync(env, fetchImpl = fetch) {
   const before = await env.RUNS.get(STATE_KEY);
   const state = before ? JSON.parse(before) : emptyState();
+  const announcing = !!state.caughtUp;
+  const prior = Object.values(state.runs).sort((a, b) => cmpId(a.messageId, b.messageId));
+  const fresh = [];
   const headers = { Authorization: `Bot ${env.DISCORD_TOKEN}` };
+  // Keep requests back for the announcements this sync may post.
+  const budget = MAX_REQUESTS - (announcing ? MAX_ANNOUNCEMENTS : 0);
   let requests = 0;
   let downloads = 0;
-  let added = 0;
+  let reachedEnd = false;
 
-  pages: while (requests < MAX_REQUESTS) {
+  pages: while (requests < budget) {
     requests++;
     const res = await fetchImpl(`${API}/channels/${env.CHANNEL_ID}/messages?after=${state.after}&limit=100`, { headers });
     if (res.status === 429) break;
@@ -42,7 +51,7 @@ export async function sync(env, fetchImpl = fetch) {
     for (const msg of page) {
       const file = msg.webhook_id && (msg.attachments || []).find((a) => a.filename === 'run.json');
       if (file && file.size <= MAX_JSON_BYTES) {
-        if (downloads >= MAX_DOWNLOADS || requests >= MAX_REQUESTS) break pages;
+        if (downloads >= MAX_DOWNLOADS || requests >= budget) break pages;
         downloads++;
         requests++;
         const got = await fetchImpl(file.url);
@@ -50,19 +59,43 @@ export async function sync(env, fetchImpl = fetch) {
         const run = got.ok ? await got.json().catch(() => null) : null;
         if (run && typeof run.id === 'string' && typeof run.result === 'string') {
           delete run.raw; // the game's raw lines: kept in Discord, not needed for rankings
+          if (!state.runs[run.id] && !fresh.some((r) => r.id === run.id)) fresh.push(run);
           state.runs[run.id] = { ...run, messageId: msg.id, postedAt: msg.timestamp };
-          added++;
         }
       }
       state.after = msg.id;
     }
-    if (page.length < 100) break;
+    if (page.length < 100) {
+      reachedEnd = true;
+      break;
+    }
   }
+  if (reachedEnd) state.caughtUp = true;
 
-  // KV allows 1,000 writes a day on the free plan: only write when something moved.
+  // KV allows 1,000 writes a day on the free plan: only write when something moved. Saved before
+  // announcing, so a failed save can't announce the same run twice.
   const after = JSON.stringify(state);
   if (after !== before) await env.RUNS.put(STATE_KEY, after);
-  return { added, requests };
+
+  let announced = 0;
+  if (announcing) {
+    const top = env.ANNOUNCE_TOP === undefined || env.ANNOUNCE_TOP === '' ? 10 : Number(env.ANNOUNCE_TOP);
+    const pool = [...prior];
+    for (const run of fresh) {
+      const list = top > 0 ? overtakes(pool, run, top) : [];
+      pool.push(run);
+      if (!list.length || announced >= MAX_ANNOUNCEMENTS) continue;
+      announced++;
+      requests++;
+      const res = await fetchImpl(`${API}/channels/${env.CHANNEL_ID}/messages`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: announcement(run, list), allowed_mentions: { parse: [] } }),
+      });
+      if (!res.ok) console.warn(`Announcing failed: Discord said ${res.status}: ${await res.text()}`);
+    }
+  }
+  return { added: fresh.length, announced, requests };
 }
 
 export async function loadRuns(env) {
@@ -110,6 +143,33 @@ export function leaderboardEmbed(runs, statKey) {
     color: 0xf0c050,
     footer: { text: `${ranked.length ? ranks[ranked[0].id][stat.key].of : 0} runs ranked` },
   };
+}
+
+// ---- Announcements ------------------------------------------------------------------------------
+
+// The leaderboard positions (top `top`) a new run takes from someone: it has to beat them, not tie.
+export function overtakes(before, run, top = 10) {
+  const was = rankRuns(before);
+  const now = rankRuns([...before, run]);
+  const out = [];
+  for (const stat of STATS) {
+    const mine = now[run.id][stat.key];
+    if (!mine || mine.rank > top) continue;
+    const held = before.find((r) => was[r.id][stat.key]?.rank === mine.rank);
+    if (!held || now[held.id][stat.key].rank === mine.rank) continue; // a free spot, or a tie
+    out.push({ stat, rank: mine.rank, value: stat.value(run), detail: stat.detail?.(run) || null, from: held });
+  }
+  return out;
+}
+
+export function announcement(run, list) {
+  const me = run.player || run.hero;
+  const lines = list.map(({ stat, rank, value, detail, from }) => {
+    const whom = (from.player || from.hero) === me ? 'beating their own run' : `overtaking **${who(from)}**`;
+    return `${MEDALS[rank - 1] || `**#${rank}**`} **${stat.label}**: ${stat.format(value)}${detail ? ` (${md(detail)})` : ''}`
+      + ` — ${whom} (${stat.format(stat.value(from))})`;
+  });
+  return [`⚔️ **${who(run)}** climbed the leaderboard with ${hero(run)}!`, ...lines].join('\n').slice(0, 2000);
 }
 
 // ---- Discord interactions ----------------------------------------------------------------------
@@ -164,6 +224,6 @@ export default {
   },
 
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(sync(env).then((r) => console.log(`synced: ${r.added} runs added, ${r.requests} requests`)));
+    ctx.waitUntil(sync(env).then((r) => console.log(`synced: ${r.added} runs added, ${r.announced} announced, ${r.requests} requests`)));
   },
 };

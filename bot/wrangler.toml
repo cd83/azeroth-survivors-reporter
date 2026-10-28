@@ -14,6 +14,8 @@ id = "PASTE_KV_NAMESPACE_ID"
 [vars]
 # The runs channel (#scoreboard): right-click it in Discord → Copy Channel ID (needs Developer Mode).
 CHANNEL_ID = "PASTE_CHANNEL_ID"
+# Announce in the channel when a new run overtakes someone in the top N of any stat (0 = off).
+ANNOUNCE_TOP = "10"
 
 # Secrets, set with  npx wrangler secret put <NAME>  (never commit them):
 #   DISCORD_TOKEN       the bot's token (Developer Portal → Bot → Reset Token)
