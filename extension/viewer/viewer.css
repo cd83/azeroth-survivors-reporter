@@ -123,6 +123,8 @@ a.record-who { color: var(--gold); }
 }
 .embed-title { font-weight: 700; color: #f2f3f5; }
 .embed-desc { margin-top: 6px; font-size: 14px; }
+.embed .md a { color: #00a8fc; text-decoration: none; }
+.embed .md a:hover { text-decoration: underline; }
 .embed .md code {
   background: #1e1f22;
   border-radius: 3px;

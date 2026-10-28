@@ -56,6 +56,22 @@
   }
 
   let lastText = null;
+  let timer = null;
+
+  // After the extension is reloaded or updated, this copy keeps running in the open game tab but
+  // can no longer reach the extension (chrome.runtime.id goes away). Stop quietly; the reloaded
+  // game tab gets the new copy.
+  function send(msg) {
+    if (!chrome.runtime?.id) {
+      clearInterval(timer);
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(msg).catch(() => {});
+    } catch {
+      clearInterval(timer);
+    }
+  }
 
   function readRuns() {
     let text;
@@ -74,16 +90,16 @@
       console.warn('[Azeroth Survivors Reporter] could not read the saved runs:', e);
       return;
     }
-    chrome.runtime.sendMessage({ type: 'runs', runs }).catch(() => {});
+    send({ type: 'runs', runs });
   }
 
   installAddon()
-    .then((state) => chrome.runtime.sendMessage({ type: 'addon', state }).catch(() => {}))
+    .then((state) => send({ type: 'addon', state }))
     .catch((e) => {
       console.warn('[Azeroth Survivors Reporter] could not install the addon:', e);
-      chrome.runtime.sendMessage({ type: 'addon', state: 'error', error: String(e?.message || e) }).catch(() => {});
+      send({ type: 'addon', state: 'error', error: String(e?.message || e) });
     });
 
   readRuns();
-  setInterval(readRuns, POLL_MS);
+  timer = setInterval(readRuns, POLL_MS);
 })();

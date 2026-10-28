@@ -74,6 +74,10 @@ async function postRun(id) {
     throw new Error('Set a Discord webhook URL first (Settings).');
   }
   const message = ASR.buildMessage(run, state.settings, VERSION);
+  // The bot first, so the post's "Download JSON" link works the moment it appears.
+  if (state.settings.leaderboardUrl) {
+    await ASR.sendToLeaderboard(state.settings.leaderboardUrl, state.settings.webhookUrl, message);
+  }
   const sent = await ASR.postToWebhook(state.settings.webhookUrl, message);
   // Read again: the game tab may have added runs while Discord answered.
   await serial(async () => {

@@ -1,5 +1,5 @@
 // The run viewer: every stored run drawn as the Discord post it makes (same buildMessage as the
-// webhook), plus its run.json. Opened from the popup; viewer.html#<run id> scrolls to one run.
+// webhook), plus its data (the JSON the post links to). Opened from the popup; viewer.html#<run id> scrolls to one run.
 const $ = (id) => document.getElementById(id);
 const VERSION = chrome.runtime.getManifest().version;
 const errors = new Map(); // run id -> last post error
@@ -12,12 +12,14 @@ function el(tag, cls, text) {
   return e;
 }
 
-// The little Discord markdown the embeds use: \-escapes, **bold**, `code`, line breaks.
+// The little Discord markdown the embeds use: \-escapes, **bold**, `code`, [links](https://…),
+// line breaks.
 function markdown(text) {
   const span = el('span', 'md');
   const html = String(text)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
     .replace(/\\([\\*_~`|#[\]()-]|&gt;)/g, (m, c) => (c === '&gt;' ? c : `&#${c.charCodeAt(0)};`))
+    .replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\n/g, '<br>');
@@ -138,7 +140,7 @@ function renderRun(run, settings, runRanks) {
   li.append(head, renderEmbed(payload.embeds[0], runRanks));
 
   const file = el('details', 'attachment');
-  file.append(el('summary', '', `📎 run.json (${(text.length / 1024).toFixed(1)} KB)`));
+  file.append(el('summary', '', `{ } Run data (${(text.length / 1024).toFixed(1)} KB)`));
   file.append(el('pre', '', text));
   li.append(file);
 

@@ -33,6 +33,10 @@ assert.match(embed.description, /Heroic/);
 assert.match(embed.description, /Co-op \(2\)/);
 assert.ok(embed.fields.find((f) => f.name === 'Bosses').value === '5 / 5');
 assert.strictEqual(msg.json.player, 'Chris');
+assert.strictEqual(msg.payload.attachments, undefined, 'no file on the post');
+assert.ok(!embed.fields.some((f) => /Download JSON/.test(f.value)), 'no link without a leaderboard');
+const linked = ASR.buildMessage({ ...win, firstSeen: 0 }, { leaderboardUrl: 'https://bot.example/' }, '0.4.0');
+assert.strictEqual(linked.payload.embeds[0].fields.at(-1).value, `[Download JSON](https://bot.example/runs/${win.id}.json)`);
 
 assert.ok(ASR.WEBHOOK_RE.test('https://discord.com/api/webhooks/123/abc-DEF_9'));
 assert.ok(!ASR.WEBHOOK_RE.test('https://evil.example/api/webhooks/123/abc'));

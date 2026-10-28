@@ -1,5 +1,6 @@
-// A run -> a Discord webhook message: an embed for people, and run.json attached for bots (a
-// leaderboard can rebuild every run from the channel's history).
+// A run -> a Discord webhook message: an embed for people, with a "Download JSON" link to the run's
+// full data on the group's leaderboard bot (bot/) when there is one. The same data (`json`) goes
+// to the bot before the post, so the link works as soon as the post appears.
 (function (root) {
   'use strict';
 
@@ -59,6 +60,9 @@
     if (run.meter.length) {
       embedFields.push({ name: 'Top spells', value: meterLines(run.meter, 5).slice(0, 1024) });
     }
+    if (settings.leaderboardUrl) {
+      embedFields.push({ name: '​', value: `[Download JSON](${runJsonUrl(settings.leaderboardUrl, run.id)})` });
+    }
 
     const embed = {
       title: title.slice(0, 256),
@@ -72,7 +76,6 @@
     const payload = {
       username: 'Azeroth Survivors',
       embeds: [embed],
-      attachments: [{ id: 0, filename: 'run.json', description: 'Run data for leaderboards' }],
       allowed_mentions: { parse: [] },
     };
 
@@ -87,12 +90,15 @@
     return { payload, json };
   }
 
+  const runJsonUrl = (leaderboardUrl, id) => `${leaderboardUrl.replace(/\/+$/, '')}/runs/${id}.json`;
+
   async function postToWebhook(webhookUrl, message) {
-    const form = new FormData();
-    form.append('payload_json', JSON.stringify(message.payload));
-    form.append('files[0]', new Blob([JSON.stringify(message.json, null, 2)], { type: 'application/json' }), 'run.json');
     const url = `${webhookUrl.replace(/\/$/, '')}?wait=true`;
-    const res = await fetch(url, { method: 'POST', body: form });
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(message.payload),
+    });
     if (!res.ok) {
       let detail = '';
       try { detail = (await res.json()).message || ''; } catch { /* not JSON */ }
@@ -110,6 +116,27 @@
     if (!res.ok) throw new Error(`Discord said ${res.status}`);
   }
 
+  // Hands the run to the group's leaderboard bot. The webhook's token (the last part of its URL)
+  // proves the sender is in the group.
+  async function sendToLeaderboard(leaderboardUrl, webhookUrl, message) {
+    const token = webhookUrl.replace(/\/+$/, '').split('/').pop();
+    let res;
+    try {
+      res = await fetch(`${leaderboardUrl.replace(/\/+$/, '')}/runs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Webhook-Token': token },
+        body: JSON.stringify(message.json),
+      });
+    } catch {
+      throw new Error("Couldn't reach the group leaderboard. Check its URL in Settings, or clear it to post without it.");
+    }
+    if (!res.ok) {
+      let detail = '';
+      try { detail = (await res.json()).error || ''; } catch { /* not JSON */ }
+      throw new Error(`The group leaderboard said ${res.status}${detail ? `: ${detail}` : ''}`);
+    }
+  }
+
   root.ASR = root.ASR || {};
-  Object.assign(root.ASR, { WEBHOOK_RE, buildMessage, postToWebhook, postText });
+  Object.assign(root.ASR, { WEBHOOK_RE, buildMessage, postToWebhook, postText, sendToLeaderboard, runJsonUrl });
 })(globalThis);

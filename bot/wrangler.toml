@@ -2,21 +2,17 @@ name = "azeroth-survivors-bot"
 main = "src/worker.js"
 compatibility_date = "2025-06-01"
 
-# Sync the runs channel every minute.
-[triggers]
-crons = ["* * * * *"]
-
 # Create it with:  npx wrangler kv namespace create RUNS   and paste the id it prints.
 [[kv_namespaces]]
 binding = "RUNS"
 id = "PASTE_KV_NAMESPACE_ID"
 
 [vars]
-# The runs channel (#scoreboard): right-click it in Discord → Copy Channel ID (needs Developer Mode).
-CHANNEL_ID = "PASTE_CHANNEL_ID"
 # Announce in the channel when a new run overtakes someone in the top N of any stat (0 = off).
 ANNOUNCE_TOP = "10"
 
 # Secrets, set with  npx wrangler secret put <NAME>  (never commit them):
-#   DISCORD_TOKEN       the bot's token (Developer Portal → Bot → Reset Token)
-#   DISCORD_PUBLIC_KEY  the app's public key (Developer Portal → General Information)
+#   WEBHOOK_URL         the #scoreboard webhook the extension posts with. The bot announces
+#                       through it, and only accepts runs from someone who has it.
+#   DISCORD_PUBLIC_KEY  the app's public key (Developer Portal → General Information), for
+#                       /leaderboard

@@ -1,8 +1,7 @@
 # Azeroth Survivors Reporter
 
 A Chrome extension that captures your [Azeroth Survivors](https://wow.aethus.pl/) runs and posts
-them to a Discord channel. Every post carries the run as `run.json` too, so a leaderboard bot can be
-built later from the channel's history.
+them to a Discord channel, with per-stat rankings and a group leaderboard bot.
 
 ## Install (each player)
 
@@ -22,7 +21,7 @@ screen. The game saves addon data at that moment, and the run shows up in the ex
 The toolbar badge counts the runs you haven't reported yet. Click **Report** to post one.
 
 To see runs without Discord, click **View** on a run (or **Open all runs ↗**) in the popup. It
-opens a page in a new tab that shows each run exactly as it would be posted, with its `run.json`
+opens a page in a new tab that shows each run exactly as it would be posted, with its full data
 (**Download run.json** saves it). The page updates as you play.
 
 Every stat is a competition: each stat on each run shows its rank (`#1` gold, `#2` silver, `#3`
@@ -34,8 +33,9 @@ just by waiting. They're still listed and can still be reported.
 
 On its own the extension ranks the runs on your computer (it keeps the last 500). With the group's
 **leaderboard bot** set up ([bot/README.md](bot/README.md)), paste its URL into Settings → **Group
-leaderboard URL** and your runs rank against everyone's reported runs, the records show who holds
-each one, and `/leaderboard` works in Discord.
+leaderboard URL**. Then your reports go to the bot too, your runs rank against everyone's, the
+records show who holds each one, each post gets a **Download JSON** link to the run's full data,
+and `/leaderboard` works in Discord.
 
 With auto-post on, finished runs go to Discord without a click: victories only, victories and
 deaths, or every run.
@@ -63,9 +63,9 @@ game (wasm) ──CHAT_MSG_ADDON──▶ Run Reporter addon (Lua)
                                    ▼  written on leaving the run
         localStorage "benilla:/benilla-config/saved/RunReporter.lua"
                                    │
-          content.js (polls) ──────┘──▶ background.js ──▶ Discord webhook
-                                         (chrome.storage)    embed + run.json
-                                               ▲
+          content.js (polls) ──────┘──▶ background.js ──▶ leaderboard bot (run JSON)
+                                         (chrome.storage)  └▶ Discord webhook (embed
+                                               ▲                + Download JSON link)
                                           popup (Report)
 ```
 
@@ -75,15 +75,16 @@ game (wasm) ──CHAT_MSG_ADDON──▶ Run Reporter addon (Lua)
 * `extension/content.js`: on wow.aethus.pl, installs the addon and watches the saved variables.
 * `extension/lib/luatable.js`: reads the Lua the game writes for saved variables.
 * `extension/lib/runs.js`: turns the raw `AZS` lines into a run record (see below).
-* `extension/lib/discord.js`: builds the embed and posts it, with `run.json` attached.
+* `extension/lib/discord.js`: builds the embed, posts it, and sends the run to the leaderboard bot.
 * `extension/lib/ranks.js`: the ranked stats (`STATS`), each run's rank per stat, and the records.
 * `extension/background.js`: the only writer of `chrome.storage.local`. It stores runs, posts
   them, runs auto-post, and keeps the badge up to date.
 * `extension/popup/`: the toolbar popup.
 * `extension/viewer/`: the run viewer page: every stored run drawn as its Discord post, ranked,
   with the records.
-* `bot/`: the leaderboard bot, a Cloudflare Worker. It reads the `run.json` posts in the channel,
-  serves them at `/runs` for the viewer, and answers `/leaderboard`. It uses the same `runs.js` and
+* `bot/`: the leaderboard bot, a Cloudflare Worker. It takes each reported run from the
+  extension, serves them at `/runs` for the viewer and `/runs/<id>.json` for the posts' links,
+  announces overtakes, and answers `/leaderboard`. It uses the same `runs.js` and
   `ranks.js` as the extension. Setup: [bot/README.md](bot/README.md).
 
 ### The run record (`run.json`, schema 1)

@@ -1,106 +1,65 @@
-// The group's leaderboard: a Cloudflare Worker that reads the run.json the extension attaches to
-// every post in the runs channel, keeps them in KV, and serves them two ways:
-//   GET  /runs          every reported run, for the extension's rankings
-//   POST /interactions  Discord's /leaderboard slash command
-// A cron trigger (wrangler.toml) syncs the channel every minute, so neither has to wait on Discord,
-// and announces in the channel when a new run overtakes someone on the leaderboard.
+// The group's leaderboard: a Cloudflare Worker that keeps every reported run in KV.
+//   POST /runs           the extension sends each run it reports (signed with the webhook's token)
+//   GET  /runs           every run, for the extension's rankings
+//   GET  /runs/<id>.json one run's full data: the "Download JSON" link on each Discord post
+//   POST /interactions   Discord's /leaderboard slash command
+// When a new run overtakes someone on the leaderboard, it announces that in the channel through
+// the same webhook the extension posts with.
 import '../../extension/lib/runs.js';
 import '../../extension/lib/ranks.js';
 
 const { STATS, rankRuns, records } = globalThis.ASR;
 
-const API = 'https://discord.com/api/v10';
-const STATE_KEY = 'state';
-// Workers get 50 outgoing requests per run; leave room for the message pages.
-const MAX_DOWNLOADS = 40;
-const MAX_REQUESTS = 48;
+const STATE_KEY = 'state'; // every run without its raw lines, for /runs and the rankings
+const RUN_KEY = (id) => `run:${id}`; // each run in full, for its JSON link
 const MAX_JSON_BYTES = 256 * 1024;
-const MAX_ANNOUNCEMENTS = 5; // per sync (a minute); more waiting runs are ranked but not announced
-
-const cmpId = (a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0);
+const RUN_ID_RE = /^[0-9a-z_-]{1,64}$/i;
 
 function emptyState() {
-  return { after: '0', runs: {} };
+  return { runs: {} };
 }
 
-// Reads the channel from where the last sync stopped, oldest first, and adds each run.json a
-// webhook posted. Stops early (and picks up there next time) at the request budget or a rate
-// limit. A run reported twice keeps its latest post. New runs that push someone down the
-// leaderboard get announced in the channel, once the bot has caught up with the channel's history
-// (so deploying it on a busy channel doesn't replay every old run).
-export async function sync(env, fetchImpl = fetch) {
-  const before = await env.RUNS.get(STATE_KEY);
-  const state = before ? JSON.parse(before) : emptyState();
-  const announcing = !!state.caughtUp;
-  const prior = Object.values(state.runs).sort((a, b) => cmpId(a.messageId, b.messageId));
-  const fresh = [];
-  const headers = { Authorization: `Bot ${env.DISCORD_TOKEN}` };
-  // Keep requests back for the announcements this sync may post.
-  const budget = MAX_REQUESTS - (announcing ? MAX_ANNOUNCEMENTS : 0);
-  let requests = 0;
-  let downloads = 0;
-  let reachedEnd = false;
+// The token is the last part of the webhook URL: anyone who can post to the channel has it, and
+// no one else does, so it doubles as the group's password.
+function webhookToken(url) {
+  return String(url || '').replace(/\/+$/, '').split('/').pop() || '';
+}
 
-  pages: while (requests < budget) {
-    requests++;
-    const res = await fetchImpl(`${API}/channels/${env.CHANNEL_ID}/messages?after=${state.after}&limit=100`, { headers });
-    if (res.status === 429) break;
-    if (!res.ok) throw new Error(`Discord said ${res.status} reading the channel: ${await res.text()}`);
-    const page = (await res.json()).sort((a, b) => cmpId(a.id, b.id));
-
-    for (const msg of page) {
-      const file = msg.webhook_id && (msg.attachments || []).find((a) => a.filename === 'run.json');
-      if (file && file.size <= MAX_JSON_BYTES) {
-        if (downloads >= MAX_DOWNLOADS || requests >= budget) break pages;
-        downloads++;
-        requests++;
-        const got = await fetchImpl(file.url);
-        if (got.status === 429) break pages;
-        const run = got.ok ? await got.json().catch(() => null) : null;
-        if (run && typeof run.id === 'string' && typeof run.result === 'string') {
-          delete run.raw; // the game's raw lines: kept in Discord, not needed for rankings
-          if (!state.runs[run.id] && !fresh.some((r) => r.id === run.id)) fresh.push(run);
-          state.runs[run.id] = { ...run, messageId: msg.id, postedAt: msg.timestamp };
-        }
-      }
-      state.after = msg.id;
-    }
-    if (page.length < 100) {
-      reachedEnd = true;
-      break;
-    }
-  }
-  if (reachedEnd) state.caughtUp = true;
-
-  // KV allows 1,000 writes a day on the free plan: only write when something moved. Saved before
-  // announcing, so a failed save can't announce the same run twice.
-  const after = JSON.stringify(state);
-  if (after !== before) await env.RUNS.put(STATE_KEY, after);
-
-  let announced = 0;
-  if (announcing) {
-    const top = env.ANNOUNCE_TOP === undefined || env.ANNOUNCE_TOP === '' ? 10 : Number(env.ANNOUNCE_TOP);
-    const pool = [...prior];
-    for (const run of fresh) {
-      const list = top > 0 ? overtakes(pool, run, top) : [];
-      pool.push(run);
-      if (!list.length || announced >= MAX_ANNOUNCEMENTS) continue;
-      announced++;
-      requests++;
-      const res = await fetchImpl(`${API}/channels/${env.CHANNEL_ID}/messages`, {
-        method: 'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: announcement(run, list), allowed_mentions: { parse: [] } }),
-      });
-      if (!res.ok) console.warn(`Announcing failed: Discord said ${res.status}: ${await res.text()}`);
-    }
-  }
-  return { added: fresh.length, announced, requests };
+function sameSecret(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 export async function loadRuns(env) {
   const state = (await env.RUNS.get(STATE_KEY, 'json')) || emptyState();
-  return Object.values(state.runs).sort((a, b) => cmpId(a.messageId, b.messageId));
+  return Object.values(state.runs).sort((a, b) => Date.parse(a.postedAt) - Date.parse(b.postedAt));
+}
+
+// Stores a reported run. A run reported again replaces its copy and isn't announced twice.
+// Returns the announcement posted, if any.
+export async function addRun(env, run, fetchImpl = fetch) {
+  const state = (await env.RUNS.get(STATE_KEY, 'json')) || emptyState();
+  const before = Object.values(state.runs).sort((a, b) => Date.parse(a.postedAt) - Date.parse(b.postedAt));
+  const isNew = !state.runs[run.id];
+  const postedAt = state.runs[run.id]?.postedAt || new Date().toISOString();
+  const { raw, ...summary } = run; // the game's raw lines only go in the full copy
+  state.runs[run.id] = { ...summary, postedAt };
+  await env.RUNS.put(RUN_KEY(run.id), JSON.stringify({ ...run, postedAt }, null, 2));
+  await env.RUNS.put(STATE_KEY, JSON.stringify(state));
+
+  const top = env.ANNOUNCE_TOP === undefined || env.ANNOUNCE_TOP === '' ? 10 : Number(env.ANNOUNCE_TOP);
+  const list = isNew && top > 0 ? overtakes(before, state.runs[run.id], top) : [];
+  if (!list.length) return null;
+  const content = announcement(state.runs[run.id], list);
+  const res = await fetchImpl(env.WEBHOOK_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'Azeroth Survivors', content, allowed_mentions: { parse: [] } }),
+  });
+  if (!res.ok) console.warn(`Announcing failed: Discord said ${res.status}: ${await res.text()}`);
+  return content;
 }
 
 // ---- /leaderboard ------------------------------------------------------------------------------
@@ -192,9 +151,15 @@ export async function verifiedBody(request, publicKey) {
   return ok ? body : null;
 }
 
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Webhook-Token',
+};
+
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
   status,
-  headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  headers: { 'Content-Type': 'application/json', ...CORS },
 });
 
 async function interactions(request, env) {
@@ -210,20 +175,43 @@ async function interactions(request, env) {
   return json({ type: 4, data: { content: 'Unknown command.', flags: 64 } });
 }
 
+async function receiveRun(request, env) {
+  if (!sameSecret(request.headers.get('X-Webhook-Token') || '', webhookToken(env.WEBHOOK_URL))) {
+    return json({ error: "That isn't this group's webhook." }, 401);
+  }
+  const text = await request.text();
+  if (text.length > MAX_JSON_BYTES) return json({ error: 'Run too large.' }, 413);
+  let run;
+  try {
+    run = JSON.parse(text);
+  } catch {
+    return json({ error: 'Not JSON.' }, 400);
+  }
+  if (!run || !RUN_ID_RE.test(run.id || '') || typeof run.result !== 'string') {
+    return json({ error: 'Not a run.' }, 400);
+  }
+  const announced = await addRun(env, run);
+  return json({ ok: true, announced: !!announced });
+}
+
 export default {
   async fetch(request, env) {
     const { pathname } = new URL(request.url);
-    if (request.method === 'GET' && pathname === '/runs') {
-      return json({ runs: await loadRuns(env) });
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (pathname === '/runs' && request.method === 'GET') return json({ runs: await loadRuns(env) });
+    if (pathname === '/runs' && request.method === 'POST') return receiveRun(request, env);
+    const one = request.method === 'GET' && pathname.match(/^\/runs\/([^/]+)\.json$/);
+    if (one) {
+      const data = RUN_ID_RE.test(one[1]) && (await env.RUNS.get(RUN_KEY(one[1])));
+      if (!data) return json({ error: 'No such run.' }, 404);
+      return new Response(data, {
+        headers: { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="run-${one[1]}.json"`, ...CORS },
+      });
     }
     if (request.method === 'POST' && pathname === '/interactions') return interactions(request, env);
     if (request.method === 'GET' && pathname === '/') {
       return new Response('Azeroth Survivors leaderboard. Runs: /runs', { headers: { 'Content-Type': 'text/plain' } });
     }
     return new Response('Not found', { status: 404 });
-  },
-
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(sync(env).then((r) => console.log(`synced: ${r.added} runs added, ${r.announced} announced, ${r.requests} requests`)));
   },
 };
