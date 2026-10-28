@@ -13,7 +13,10 @@
 
 <main>
   <section id="runs-section">
-    <h2>Recent runs</h2>
+    <div class="section-head">
+      <h2>Recent runs</h2>
+      <a href="#" id="open-viewer">Open all runs ↗</a>
+    </div>
     <ul id="runs"></ul>
     <p id="empty" class="hint" hidden>
       No runs yet. Finish a run in <a href="https://wow.aethus.pl/" target="_blank" rel="noopener">Azeroth Survivors</a>,
@@ -32,6 +35,11 @@
       <label>Your name (shown on posts and leaderboards)
         <input id="player" type="text" maxlength="40" placeholder="e.g. Chris">
       </label>
+      <label>Group leaderboard URL (optional)
+        <input id="leaderboard" type="url" autocomplete="off" spellcheck="false"
+               placeholder="https://azeroth-survivors-bot.….workers.dev">
+      </label>
+      <p class="hint">From whoever runs your group's bot. Ranks your runs against everyone's.</p>
       <label>Auto-post new runs
         <select id="autopost">
           <option value="off">Off — I'll click Report</option>

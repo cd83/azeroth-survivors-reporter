@@ -39,12 +39,20 @@ function renderRun(run) {
   button.disabled = busy.has(run.id);
   if (busy.has(run.id)) button.textContent = 'Sending…';
   button.addEventListener('click', () => report(run.id));
-  actions.append(button);
+  const view = el('button', 'secondary', 'View');
+  view.addEventListener('click', () => openViewer(run.id));
+  actions.append(button, view);
   if (run.posted) actions.append(el('span', 'posted', '✓ Reported'));
   li.append(actions);
 
   if (errors.has(run.id)) li.append(el('div', 'error', errors.get(run.id)));
   return li;
+}
+
+// The run viewer page, in a new tab (scrolled to one run when given its id).
+function openViewer(id) {
+  chrome.tabs.create({ url: chrome.runtime.getURL(`viewer/viewer.html${id ? `#${id}` : ''}`) });
+  window.close();
 }
 
 function renderAddon(addon, hasRuns) {
@@ -99,11 +107,21 @@ async function saveSettings() {
     settingsMessage('That does not look like a Discord webhook URL.', 'err');
     return false;
   }
-  const settings = { webhookUrl, playerName: $('player').value.trim(), autoPost: $('autopost').value };
+  const leaderboardUrl = $('leaderboard').value.trim().replace(/\/+$/, '');
+  if (leaderboardUrl && !/^https:\/\/[^/\s]+(\/\S*)?$/.test(leaderboardUrl)) {
+    settingsMessage('The leaderboard URL should start with https://.', 'err');
+    return false;
+  }
+  const settings = { webhookUrl, leaderboardUrl, playerName: $('player').value.trim(), autoPost: $('autopost').value };
   await chrome.storage.local.set({ settings });
   settingsMessage('Saved.', 'ok');
   return true;
 }
+
+$('open-viewer').addEventListener('click', (e) => {
+  e.preventDefault();
+  openViewer();
+});
 
 $('settings-form').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -128,6 +146,7 @@ chrome.storage.onChanged.addListener((changes) => {
 render().then((settings) => {
   $('webhook').value = settings.webhookUrl || '';
   $('player').value = settings.playerName || '';
+  $('leaderboard').value = settings.leaderboardUrl || '';
   $('autopost').value = settings.autoPost || 'off';
   if (!settings.webhookUrl) $('settings').open = true;
 });

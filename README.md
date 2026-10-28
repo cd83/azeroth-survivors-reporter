@@ -21,6 +21,20 @@ Play a run. When it ends (victory, death or End Run), click **Main Menu** or **A
 screen. The game saves addon data at that moment, and the run shows up in the extension popup.
 The toolbar badge counts the runs you haven't reported yet. Click **Report** to post one.
 
+To see runs without Discord, click **View** on a run (or **Open all runs ↗**) in the popup. It
+opens a page in a new tab that shows each run exactly as it would be posted, with its `run.json`
+(**Download run.json** saves it). The page updates as you play.
+
+Every stat is a competition: each stat on each run shows its rank (`#1` gold, `#2` silver, `#3`
+bronze; hover for "of N"), and **Records** at the top holds the best run for each one: longest
+survival, highest level, most kills, elites, guardians, bosses, damage, DPS, damage with one spell,
+gold and caches, and least damage taken (victories only, since dying early keeps it low).
+
+On its own the extension ranks the runs on your computer (it keeps the last 500). With the group's
+**leaderboard bot** set up ([bot/README.md](bot/README.md)), paste its URL into Settings → **Group
+leaderboard URL** and your runs rank against everyone's reported runs, the records show who holds
+each one, and `/leaderboard` works in Discord.
+
 With auto-post on, finished runs go to Discord without a click: victories only, victories and
 deaths, or every run.
 
@@ -30,7 +44,7 @@ auto-posted.
 ## Discord setup (server admin, once)
 
 Server Settings → Integrations → Webhooks → **New Webhook** → choose the channel (e.g.
-`#runs`) → **Copy Webhook URL**, and share it with the group. Anyone with the URL can post to that
+`#scoreboard`) → **Copy Webhook URL**, and share it with the group. Anyone with the URL can post to that
 channel, so keep it private.
 
 ## How it works
@@ -60,9 +74,15 @@ game (wasm) ──CHAT_MSG_ADDON──▶ Run Reporter addon (Lua)
 * `extension/lib/luatable.js`: reads the Lua the game writes for saved variables.
 * `extension/lib/runs.js`: turns the raw `AZS` lines into a run record (see below).
 * `extension/lib/discord.js`: builds the embed and posts it, with `run.json` attached.
+* `extension/lib/ranks.js`: the ranked stats (`STATS`), each run's rank per stat, and the records.
 * `extension/background.js`: the only writer of `chrome.storage.local`. It stores runs, posts
   them, runs auto-post, and keeps the badge up to date.
 * `extension/popup/`: the toolbar popup.
+* `extension/viewer/`: the run viewer page: every stored run drawn as its Discord post, ranked,
+  with the records.
+* `bot/`: the leaderboard bot, a Cloudflare Worker. It reads the `run.json` posts in the channel,
+  serves them at `/runs` for the viewer, and answers `/leaderboard`. It uses the same `runs.js` and
+  `ranks.js` as the extension. Setup: [bot/README.md](bot/README.md).
 
 ### The run record (`run.json`, schema 1)
 
@@ -84,22 +104,24 @@ game (wasm) ──CHAT_MSG_ADDON──▶ Run Reporter addon (Lua)
 
 ```
 node test/run-tests.js
+node test/bot-tests.mjs
 ```
 
-The test parses `test/fixture-RunReporter.lua` and `test/fixture-ingame.lua` (the latter written
+`bot-tests.mjs` runs the bot against a fake Discord and KV: syncing, the request budget,
+`/leaderboard`, and signature checks. `run-tests.js` parses `test/fixture-RunReporter.lua` and `test/fixture-ingame.lua` (the latter written
 by the game itself after a real run) and builds Discord messages from them.
 
 To look at the popup without installing anything, serve the repo root
 (`python -m http.server 8765`) and open http://localhost:8765/test/popup-preview.html. It shows the
-real popup with sample runs and a stand-in `chrome` API.
+real popup with sample runs and a stand-in `chrome` API. `/test/viewer-preview.html` does the
+same for the run viewer, with the test fixtures' runs.
 
 After editing the extension, click the reload icon on its card in `chrome://extensions` and
 reload the game tab.
 
 ## Ideas / next steps
 
-* **Leaderboards**: a small Discord bot that reads the `run.json` attachments in the runs channel
-  and answers `/leaderboard zone:elwynn` (fastest victory, most kills, highest DPS per class).
-  Because every post carries the data, the bot can rebuild from history at any time.
+* Leaderboards per zone, difficulty or class (`/leaderboard zone:elwynn`), and best run per
+  player instead of best runs.
 * Per-zone personal bests in the popup.
 * Firefox build (MV3 with `browser_specific_settings`).

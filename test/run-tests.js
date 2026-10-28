@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert');
-for (const f of ['luatable.js', 'runs.js', 'discord.js']) require(path.join(__dirname, '../extension/lib', f));
+for (const f of ['luatable.js', 'runs.js', 'discord.js', 'ranks.js']) require(path.join(__dirname, '../extension/lib', f));
 const { ASR } = globalThis;
 
 const text = fs.readFileSync(path.join(__dirname, 'fixture-RunReporter.lua'), 'utf8');
@@ -49,6 +49,21 @@ assert.strictEqual(ingame[0].damage, 2249);
 assert.strictEqual(ingame[0].gold, 15);
 assert.strictEqual(ingame[0].gameTime, 1793136498);
 assert.strictEqual(ingame[0].meter.length, 4);
+
+// Ranks: higher wins, ties share a rank, damage taken only among victories, lower wins.
+const all = [...runs, ...ingame];
+const ranks = ASR.rankRuns(all);
+assert.strictEqual(ranks[win.id].kills.rank, 1);
+assert.strictEqual(ranks[win.id].kills.of, 3);
+assert.deepStrictEqual(ranks[left.id].taken, undefined, 'only victories rank on damage taken');
+assert.strictEqual(ranks[win.id].taken.rank, 1);
+const tied = ASR.rankRuns([{ id: 'a', kills: 5, meter: [] }, { id: 'b', kills: 5, meter: [] }, { id: 'c', kills: 1, meter: [] }]);
+assert.deepStrictEqual([tied.a.kills.rank, tied.b.kills.rank, tied.c.kills.rank], [1, 1, 3]);
+const recs = ASR.records(all);
+assert.strictEqual(recs.find((r) => r.stat.key === 'damage').run.id, win.id);
+const spell = recs.find((r) => r.stat.key === 'spell');
+assert.deepStrictEqual([spell.run.id, spell.value, spell.detail], [ingame[0].id, 1584, 'Cleave']);
+assert.strictEqual(ranks[win.id].spell, undefined, 'no meter, no spell rank');
 
 console.log('all tests passed');
 console.log(JSON.stringify(ASR.buildMessage(ingame[0], {}, '0.1.0').payload.embeds[0], null, 2));

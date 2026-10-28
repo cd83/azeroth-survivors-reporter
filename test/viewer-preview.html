@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Viewer preview</title>
+<!-- The real run viewer, with a stand-in `chrome` API and the test fixtures' runs, to look at it
+     without installing the extension. Serve the repo root (python -m http.server) and open
+     /test/viewer-preview.html. -->
+<base href="../extension/viewer/">
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<script src="../lib/luatable.js"></script>
+<script src="../lib/runs.js"></script>
+<script>
+  const store = { settings: { webhookUrl: '', playerName: 'Chris', autoPost: 'off', leaderboardUrl: 'https://bot.test' }, runs: [] };
+  // A stand-in for the group bot's GET /runs: two friends' runs.
+  const realFetch = window.fetch;
+  window.fetch = (url, init) => (String(url) === 'https://bot.test/runs'
+    ? Promise.resolve(Response.json({ runs: groupRuns }))
+    : realFetch(url, init));
+  let groupRuns = [];
+  window.chrome = {
+    storage: {
+      local: { get: async () => store, set: async (v) => Object.assign(store, v) },
+      onChanged: { addListener() {} },
+    },
+    runtime: {
+      getManifest: () => ({ version: '0.2.0' }),
+      sendMessage: async () => ({ ok: false, error: 'Set a Discord webhook URL first (Settings).' }),
+    },
+  };
+
+  (async () => {
+    for (const f of ['fixture-RunReporter.lua', 'fixture-ingame.lua']) {
+      const text = await (await fetch(`../../test/${f}`)).text();
+      store.runs.push(...ASR.runsFromSavedVariables(text).map((r) => ({ ...r, firstSeen: Date.now(), posted: null })));
+    }
+    store.runs[0].posted = { at: Date.now() - 3600e3 };
+    const base = store.runs[1];
+    groupRuns = [
+      { ...base, id: 'sam1', player: 'Sam', hero: 'Grokk', className: 'Hunter', kills: 5120, gold: 990, taken: 4100, messageId: '1' },
+      { ...base, id: 'lee1', player: 'Lee', hero: 'Mira', className: 'Priest', level: 35, damage: 3100000, messageId: '2' },
+    ];
+
+    const html = await (await fetch('viewer.html')).text();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const scripts = [...doc.querySelectorAll('script')].map((s) => s.getAttribute('src'));
+    doc.querySelectorAll('script').forEach((s) => s.remove());
+    document.body.append(...doc.body.childNodes);
+    for (const src of scripts) {
+      await new Promise((resolve) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        document.body.append(s);
+      });
+    }
+  })();
+</script>
+</body>
+</html>

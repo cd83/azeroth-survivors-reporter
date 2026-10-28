@@ -4,8 +4,8 @@
 importScripts('lib/luatable.js', 'lib/runs.js', 'lib/discord.js');
 
 const VERSION = chrome.runtime.getManifest().version;
-const MAX_RUNS = 50;
-const DEFAULT_SETTINGS = { webhookUrl: '', playerName: '', autoPost: 'off' };
+const MAX_RUNS = 500; // every stored run competes in the rankings
+const DEFAULT_SETTINGS = { webhookUrl: '', leaderboardUrl: '', playerName: '', autoPost: 'off' };
 
 // Read-modify-write of storage, one at a time (the game tab, the popup and auto-post all write).
 let chain = Promise.resolve();

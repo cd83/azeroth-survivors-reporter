@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Azeroth Survivors Runs</title>
+<link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+<header>
+  <h1>Azeroth Survivors Runs</h1>
+  <p class="hint">Each run as it looks when posted to Discord, with the <code>run.json</code> a leaderboard bot would read.
+    Updates on its own as you play.</p>
+</header>
+
+<main>
+  <p id="empty" class="hint" hidden>
+    No runs yet. Finish a run in <a href="https://wow.aethus.pl/" target="_blank" rel="noopener">Azeroth Survivors</a>,
+    then go back to the <b>Main Menu</b> (or press <b>Again</b>): the game saves the run then, and it shows up here.
+  </p>
+  <section id="records-section" hidden>
+    <h2>Records</h2>
+    <p id="records-scope" class="hint"></p>
+    <ol id="records"></ol>
+  </section>
+  <h2 id="runs-heading" hidden>Runs</h2>
+  <ol id="runs"></ol>
+</main>
+
+<script src="../lib/runs.js"></script>
+<script src="../lib/discord.js"></script>
+<script src="../lib/ranks.js"></script>
+<script src="viewer.js"></script>
+</body>
+</html>

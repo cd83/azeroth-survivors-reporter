@@ -1,0 +1,13 @@
+{
+  "name": "azeroth-survivors-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "register": "node scripts/register-commands.js",
+    "logs": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
