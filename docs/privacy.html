@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Azeroth Survivors Reporter Privacy Policy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: one readable column, a short summary panel up top, then plain sections. Colors echo the extension's dark brown and gold. */
+:root {
+  --bg: #fbf8f2;
+  --panel: #f2ebdd;
+  --fg: #231d14;
+  --muted: #6b5f4c;
+  --rule: #ddd1bb;
+  --accent: #8a5a00;
+  --font-display: "Cinzel", Georgia, "Times New Roman", serif;
+  --font-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #15110c; --panel: #221b12; --fg: #e8dcc4; --muted: #a8977a; --rule: #4a3a22; --accent: #f0c050;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #15110c; --panel: #221b12; --fg: #e8dcc4; --muted: #a8977a; --rule: #4a3a22; --accent: #f0c050;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 17px/1.6 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding-block: 3rem 4rem;
+  display: grid;
+  gap: 2rem;
+}
+header { display: grid; gap: 0.5rem; }
+.eyebrow {
+  font-size: 0.8rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  margin: 0;
+  font: 600 clamp(1.7rem, 5vw, 2.3rem)/1.2 var(--font-display);
+  color: var(--accent);
+  text-wrap: balance;
+}
+.dates { color: var(--muted); font-size: 0.95rem; margin: 0; }
+
+.summary {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 1.1rem 1.25rem;
+}
+.summary h2 { margin-top: 0; }
+.summary ul { margin: 0; }
+
+section { display: grid; gap: 0.6rem; min-width: 0; }
+h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  text-wrap: balance;
+}
+p, ul { margin: 0; }
+ul { padding-left: 1.2rem; display: grid; gap: 0.35rem; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: Consolas, ui-monospace, monospace; font-size: 0.9em; }
+footer { border-top: 1px solid var(--rule); padding-top: 1rem; color: var(--muted); font-size: 0.95rem; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <span class="eyebrow">Chrome extension</span>
+    <h1>Azeroth Survivors Reporter Privacy Policy</h1>
+    <p class="dates">Effective October 29, 2026</p>
+  </header>
+
+  <div class="summary">
+    <h2>In short</h2>
+    <ul>
+      <li>The extension reads your run results from Azeroth Survivors and nothing else.</li>
+      <li>It sends them only to the Discord channel and the group leaderboard that you set up.</li>
+      <li>The developer receives none of your data. There are no analytics, ads or tracking.</li>
+    </ul>
+  </div>
+
+  <section>
+    <h2>What the extension collects</h2>
+    <p>On <code>wow.aethus.pl</code>, the extension reads the results the game saves when a run ends:</p>
+    <ul>
+      <li>the run's numbers: time, level, kills, elites, guardians, bosses, damage, damage taken, gold and caches;</li>
+      <li>your hero's name, race and class, the zone, and whether the run was heroic, endless or co-op;</li>
+      <li>damage and healing meters, your spells, and the gear your hero wore;</li>
+      <li>party members' hero names and damage, in co-op runs.</li>
+    </ul>
+    <p>It also keeps what you type into its settings: your player name, your Discord webhook address, your group's leaderboard address, and your auto-post choice.</p>
+    <p>It does not read other websites, your browsing history, your Discord account, or any passwords.</p>
+  </section>
+
+  <section>
+    <h2>Where it is stored</h2>
+    <p>Your settings and your most recent runs are stored in your browser, in the extension's own storage. They stay on your computer until you report a run.</p>
+  </section>
+
+  <section>
+    <h2>Where it is sent</h2>
+    <ul>
+      <li><strong>Your Discord channel.</strong> When you report a run, or when auto-post is on, the run is posted through the webhook you entered. Everyone who can see that channel can read it. Discord's own privacy policy covers it from there.</li>
+      <li><strong>Your group's leaderboard</strong>, only if you entered its address. The run and your player name are stored there so your group can rank runs together. Anyone with the leaderboard's address can read the runs on it. The leaderboard is run by your group's organizer, not by the extension's developer. To prove you belong to the group, the extension sends it the last part of your webhook address.</li>
+    </ul>
+    <p>Nothing is sent anywhere else. The data is not sold, shared with advertisers, or used for any purpose other than reporting and ranking your runs.</p>
+  </section>
+
+  <section>
+    <h2>Deleting your data</h2>
+    <ul>
+      <li>Removing the extension from Chrome deletes everything it stored on your computer.</li>
+      <li>Messages already posted to Discord can be deleted by that server's moderators.</li>
+      <li>To remove your runs from a group leaderboard, ask the person who runs it.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Changes</h2>
+    <p>If this policy changes, the new version will be posted on this page with a new effective date.</p>
+  </section>
+
+  <footer>
+    Questions? Use the support link on the extension's Chrome Web Store page.
+  </footer>
+</main>
+</body>
+</html>
